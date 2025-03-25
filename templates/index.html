@@ -117,22 +117,11 @@
 
         // Function to copy text to clipboard
         function copyToClipboard(text) {
-            // Remove any extra whitespace from the beginning and end
-            const cleanText = text.replace(/^\s+|\s+$/g, '');
-            // Create a temporary textarea to handle the copy operation
-            const textarea = document.createElement('textarea');
-            textarea.value = cleanText;
-            textarea.style.position = 'fixed';  // Ensure it's not visible
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
+            navigator.clipboard.writeText(text).then(() => {
                 // Could add a toast notification here
-            } catch (err) {
+            }).catch(err => {
                 console.error('Failed to copy text: ', err);
-            }
-            document.body.removeChild(textarea);
+            });
         }
 
         // Function to detect and format code blocks

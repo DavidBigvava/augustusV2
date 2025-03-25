@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify
+import os
 from src.mistral_client import MistralHandler
 
 app = Flask(__name__)
@@ -18,4 +19,7 @@ def chat():
     return jsonify({'response': response})
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+    # Get port from environment variable or default to 10000
+    port = int(os.environ.get('PORT', 10000))
+    # Bind to 0.0.0.0 to listen on all available interfaces
+    app.run(host='0.0.0.0', port=port) 
