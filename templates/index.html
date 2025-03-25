@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Augustus AI Chat</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Add Prism CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/plugins/toolbar/prism-toolbar.min.css" rel="stylesheet" />
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="header-content">
+                <h1>Augustus AI Chat</h1>
+                <button id="theme-toggle" class="theme-toggle">
+                    <span class="light-icon">🌞</span>
+                    <span class="dark-icon">🌙</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="chat-messages" id="chat-messages">
+            <!-- Messages will be dynamically added here -->
+        </div>
+        
+        <div class="chat-input-container">
+            <form id="chat-form">
+                <textarea id="message-input" placeholder="Type your message here... (Shift+Enter for new line)" rows="1"></textarea>
+                <button type="submit">Send</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Prism JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/plugins/toolbar/prism-toolbar.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-json.min.js"></script>
+
+    <script>
+        // Theme toggle functionality
+        const themeToggle = document.getElementById('theme-toggle');
+        const html = document.documentElement;
+        
+        // Check for saved theme preference, default to light
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-theme', savedTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        });
+
+        // Rest of the chat functionality
+        const chatForm = document.getElementById('chat-form');
+        const messageInput = document.getElementById('message-input');
+        const chatMessages = document.getElementById('chat-messages');
+
+        // Auto-resize textarea as content grows
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        // Handle Enter and Shift+Enter
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                if (!e.shiftKey) {
+                    e.preventDefault();
+                    chatForm.dispatchEvent(new Event('submit'));
+                }
+            }
+        });
+
+        // Function to create typing indicator
+        function createTypingIndicator() {
+            const typingIndicator = document.createElement('div');
+            typingIndicator.className = 'typing-indicator';
+            typingIndicator.innerHTML = `
+                <div class="typing-bubble">
+                    <div class="dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            `;
+            return typingIndicator;
+        }
+
+        let currentTypingIndicator = null;
+
+        // Function to show/hide typing indicator
+        function showTypingIndicator() {
+            if (currentTypingIndicator) {
+                hideTypingIndicator();
+            }
+            currentTypingIndicator = createTypingIndicator();
+            chatMessages.appendChild(currentTypingIndicator);
+            currentTypingIndicator.style.display = 'block';
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            if (currentTypingIndicator && currentTypingIndicator.parentNode) {
+                currentTypingIndicator.parentNode.removeChild(currentTypingIndicator);
+                currentTypingIndicator = null;
+            }
+        }
+
+        // Function to copy text to clipboard
+        function copyToClipboard(text) {
+            // Remove any extra whitespace from the beginning and end
+            const cleanText = text.replace(/^\s+|\s+$/g, '');
+            // Create a temporary textarea to handle the copy operation
+            const textarea = document.createElement('textarea');
+            textarea.value = cleanText;
+            textarea.style.position = 'fixed';  // Ensure it's not visible
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                // Could add a toast notification here
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+            }
+            document.body.removeChild(textarea);
+        }
+
+        // Function to detect and format code blocks
+        function formatMessage(text) {
+            // Check if the text contains code block markers
+            if (text.includes('```')) {
+                const container = document.createElement('div');
+                const parts = text.split('```');
+                
+                parts.forEach((part, index) => {
+                    if (index % 2 === 0) {
+                        // This is regular text
+                        if (part.trim()) {
+                            const textDiv = document.createElement('div');
+                            textDiv.textContent = part;
+                            container.appendChild(textDiv);
+                        }
+                    } else {
+                        // This is a code block
+                        const codeBlock = document.createElement('div');
+                        codeBlock.className = 'code-block';
+                        
+                        // Extract language if specified
+                        let language = 'plaintext';
+                        let code = part;
+                        const firstLineBreak = part.indexOf('\n');
+                        if (firstLineBreak > 0) {
+                            const possibleLang = part.substring(0, firstLineBreak).trim();
+                            if (possibleLang) {
+                                language = possibleLang;
+                                code = part.substring(firstLineBreak + 1);
+                            }
+                        }
+
+                        // Create code header
+                        const codeHeader = document.createElement('div');
+                        codeHeader.className = 'code-header';
+                        
+                        // Add language indicator
+                        const langIndicator = document.createElement('div');
+                        langIndicator.className = 'code-language';
+                        langIndicator.textContent = language;
+                        codeHeader.appendChild(langIndicator);
+
+                        // Add action buttons
+                        const actionButtons = document.createElement('div');
+                        actionButtons.className = 'code-actions';
+                        
+                        // Copy button
+                        const copyButton = document.createElement('button');
+                        copyButton.className = 'code-action-btn';
+                        copyButton.innerHTML = '<span>Copy</span>';
+                        copyButton.onclick = () => copyToClipboard(code.trim());
+                        
+                        actionButtons.appendChild(copyButton);
+                        codeHeader.appendChild(actionButtons);
+
+                        // Add header to code block
+                        codeBlock.appendChild(codeHeader);
+
+                        // Add code content
+                        const pre = document.createElement('pre');
+                        const codeElem = document.createElement('code');
+                        codeElem.className = `language-${language}`;
+                        codeElem.textContent = code.trim();
+                        pre.appendChild(codeElem);
+                        codeBlock.appendChild(pre);
+                        
+                        container.appendChild(codeBlock);
+                    }
+                });
+
+                return container;
+            }
+            
+            // Regular text message
+            const textDiv = document.createElement('div');
+            textDiv.textContent = text;
+            return textDiv;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            // Clear input and reset height
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+
+            // Add user message to chat
+            const userMessageDiv = document.createElement('div');
+            userMessageDiv.className = 'message user-message';
+            const userContent = formatMessage(message);
+            userMessageDiv.appendChild(userContent);
+            chatMessages.appendChild(userMessageDiv);
+
+            // Show typing indicator
+            showTypingIndicator();
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+
+                const data = await response.json();
+                
+                // Hide typing indicator before showing response
+                hideTypingIndicator();
+                
+                if (data.response) {
+                    // Add bot's response to chat
+                    const botMessageDiv = document.createElement('div');
+                    botMessageDiv.className = 'message bot-message';
+                    const botContent = formatMessage(data.response);
+                    botMessageDiv.appendChild(botContent);
+                    chatMessages.appendChild(botMessageDiv);
+                    
+                    // Highlight all code blocks
+                    Prism.highlightAll();
+                }
+
+                // Scroll to bottom
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            } catch (error) {
+                console.error('Error:', error);
+                // Hide typing indicator on error
+                hideTypingIndicator();
+                // Add error message to chat
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'message error-message';
+                errorDiv.textContent = 'Error: Could not get response from server';
+                chatMessages.appendChild(errorDiv);
+            }
+
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+    </script>
+</body>
+</html> 
